@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AQI Live</title>
+<script src="https://cdn.tailwindcss.com"></script>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="YX" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+<style>
+    /* Custom style for the map popup */
+    .leaflet-popup-content-wrapper { border-radius: 8px; font-family: sans-serif; }
+    .leaflet-popup-content { margin: 10px; text-align: center; }
+</style>
+</head>
+<body class="bg-slate-100 font-sans">
+<div class="max-w-6xl mx-auto p-8">
+  <h1 class="text-5xl font-black mb-4">Delhi Center AQI</h1>
+
+  <div class="bg-white p-8 rounded-xl shadow mb-10">
+    <div class="flex items-end gap-4">
+      <h2 id="mainAQI" class="text-8xl font-black">---</h2>
+      <span id="status" class="text-xl font-bold"></span>
+    </div>
+    <p id="updated" class="text-slate-500 mt-2"></p>
+  </div>
+
+  <h2 class="text-2xl font-bold mb-4">Live Map</h2>
+  <div id="map" class="h-96 w-full rounded-xl shadow mb-10 z-0"></div>
+
+  <h2 class="text-2xl font-bold mb-4">Regional Breakdown</h2>
+  <div id="regions" class="grid md:grid-cols-4 gap-6"></div>
+</div>
+
+<script>
+// Map Initialization Variables
+let map;
+let markers = [];
+
+function getStatus(val) {
+  if (val <= 50) return "Good";
+  if (val <= 100) return "Moderate";
+  if (val <= 200) return "Unhealthy";
+  return "Hazardous";
+}
+
+function getColor(val) {
+  if (val <= 50) return "#22c55e"; // Green
+  if (val <= 100) return "#eab308"; // Yellow
+  if (val <= 200) return "#f97316"; // Orange
+  return "#ef4444"; // Red
+}
+
+function initMap(lat, lon) {
+    if (map) return; // Prevent re-initialization
+    map = L.map('map').setView([lat, lon], 11); // Zoom level 11 for Delhi
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap'
+    }).addTo(map);
+}
+
+async function loadAQI() {
+  try {
+    const response = await fetch("/api/aqi");
+    const data = await response.json();
+
+    if (!data.stations || data.stations.length === 0) {
+      document.getElementById("mainAQI").innerText = "---";
+      document.getElementById("status").innerText = "No Data";
+      return;
+    }
+
+    const main = data.stations[0];
+    const aqiValue = main.AQI; 
+    document.getElementById("mainAQI").innerText = Math.round(aqiValue);
+    document.getElementById("status").innerText = getStatus(aqiValue);
+
+    // Initialize map centered on the first station if not already active
+    // (Using specific coords for Delhi center if first station varies)
+    initMap(28.6139, 77.2090);
+
+    // Clear existing markers before adding new ones
+    markers.forEach(layer => map.removeLayer(layer));
+    markers = [];
+
+    let updatedTime;
+    if (typeof main.lastUpdated === "number") {
+      updatedTime = new Date(main.lastUpdated * 1000); 
+    } else {
+      updatedTime = new Date(main.lastUpdated); 
+    }
+
+    document.getElementById("updated").innerText =
+      "Updated: " + updatedTime.toLocaleString("en-IN", {
+        timeZone: "Asia/Kolkata",
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      });
+
+    const grid = document.getElementById("regions");
+    grid.innerHTML = "";
+    
+    data.stations.forEach(s => {
+      // 1. Add to Grid
+      grid.innerHTML += `
+        <div class="bg-white p-4 rounded shadow">
+          <h3 class="font-bold">${s.location}</h3>
+          <p class="text-3xl font-black">${Math.round(s.AQI)}</p>
+          <p class="text-sm font-bold" style="color:${getColor(s.AQI)}">${getStatus(s.AQI)}</p>
+        </div>
+      `;
+
+      // 2. Add to Map (Only if lat/lon exists)
+      if (s.lat && s.lon) {
+          const circle = L.circleMarker([s.lat, s.lon], {
+              color: getColor(s.AQI),
+              fillColor: getColor(s.AQI),
+              fillOpacity: 0.7,
+              radius: 15
+          }).addTo(map);
+
+          circle.bindPopup(`
+            <b>${s.location}</b><br>
+            AQI: ${Math.round(s.AQI)}<br>
+            ${getStatus(s.AQI)}
+          `);
+          
+          markers.push(circle);
+      }
+    });
+
+  } catch (err) {
+    console.error("Failed to load AQI", err);
+    document.getElementById("mainAQI").innerText = "---";
+    document.getElementById("status").innerText = "Error";
+  }
+}
+
+loadAQI();
+setInterval(loadAQI, 300000); 
+</script>
+</body>
+</html>

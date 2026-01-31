@@ -8,7 +8,7 @@ const API_KEY = "9937d49d160b63eeb95ba143c8973684";
 
 // --- CACHE & LOCATIONS ---
 let aqiCache = { data: null, timestamp: 0 };
-const CACHE_DURATION = 10 * 60 * 1000; // 10 Minutes
+const CACHE_DURATION = 10 * 60 * 1000; // Cache for 10 Minutes
 
 // Full List of 30+ Delhi Locations
 const DELHI_LOCATIONS = [
@@ -110,8 +110,9 @@ app.get("/api/aqi", async (req, res) => {
   }
 });
 
+// IMPORTANT: Updated to serve server.html
 app.get("/", (req, res) => {
-  res.sendFile(path.join(process.cwd(), 'serv.html'));
+  res.sendFile(path.join(process.cwd(), 'server.html'));
 });
 
 if (require.main === module) {

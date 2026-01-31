@@ -4,20 +4,13 @@ const path = require("path");
 const app = express();
 const PORT = 5000;
 
-// Remove host binding for Vercel compatibility (Vercel handles this)
-// const host = "0.0.0.0"; 
-
 const API_KEY = "9937d49d160b63eeb95ba143c8973684"; 
 
-// --- SMART CACHING SYSTEM ---
-// We cache data for 10 minutes to avoid hitting OpenWeatherMap rate limits
-let aqiCache = {
-  data: null,
-  timestamp: 0
-};
-const CACHE_DURATION = 10 * 60 * 1000; // 10 Minutes in milliseconds
+// --- CACHE & LOCATIONS ---
+let aqiCache = { data: null, timestamp: 0 };
+const CACHE_DURATION = 10 * 60 * 1000; // 10 Minutes
 
-// --- ALL MAJOR DELHI LOCATIONS (30+ Stations) ---
+// Full List of 30+ Delhi Locations
 const DELHI_LOCATIONS = [
   { name: "Connaught Place", lat: 28.6328, lon: 77.2197 },
   { name: "India Gate", lat: 28.6129, lon: 77.2295 },
@@ -104,35 +97,23 @@ const fetchAreaAQI = (area) =>
 
 app.get("/api/aqi", async (req, res) => {
   try {
-    // Check Cache first
     if (aqiCache.data && (Date.now() - aqiCache.timestamp < CACHE_DURATION)) {
-      console.log("Serving from Cache");
       return res.json(aqiCache.data);
     }
-
-    console.log("Fetching fresh data from API...");
     const stations = (await Promise.all(DELHI_LOCATIONS.map(fetchAreaAQI))).filter(Boolean);
-    
     const responseData = { city: "Delhi", stations };
-    
-    // Update Cache
     aqiCache.data = responseData;
     aqiCache.timestamp = Date.now();
-
     res.json(responseData);
   } catch (err) {
-    console.error(err);
     res.json({ city: "Delhi", stations: [] });
   }
 });
 
-// SERVE THE HTML FILE
-// IMPORTANT: Matches the file name you are using (server.html)
 app.get("/", (req, res) => {
-  res.sendFile(path.join(process.cwd(), 'server.html'));
+  res.sendFile(path.join(process.cwd(), 'serv.html'));
 });
 
-// Important for Vercel & Local Development
 if (require.main === module) {
   app.listen(PORT, () => console.log("Server running on port " + PORT));
 }

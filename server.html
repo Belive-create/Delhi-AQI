@@ -3,78 +3,117 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Delhi Live Air Quality</title>
+<title>Delhi Pollution Monitor</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700;900&display=swap" rel="stylesheet">
 
 <style>
-    body { font-family: 'Outfit', sans-serif; }
+    body { 
+        font-family: 'Outfit', sans-serif; 
+        /* POLLUTION BACKGROUND IMAGE */
+        background-image: url('https://images.unsplash.com/photo-1520699697851-3dc68aa3a474?q=80&w=2000&auto=format&fit=crop');
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+    }
     
-    /* Glassmorphism Classes */
+    /* Dark Overlay to make text readable */
+    .overlay {
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(15, 23, 42, 0.7); /* Dark Blue/Grey Tint */
+        backdrop-filter: blur(4px);
+        z-index: -1;
+    }
+
+    /* Glassmorphism Cards */
     .glass {
-        background: rgba(255, 255, 255, 0.7);
+        background: rgba(255, 255, 255, 0.1); /* More transparent for dark mode feel */
         backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
-        border: 1px solid rgba(255, 255, 255, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: white;
+    }
+
+    .glass-strong {
+        background: rgba(30, 41, 59, 0.8);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: white;
     }
     
-    /* Dynamic Gradients for AQI */
-    .bg-good { background: linear-gradient(135deg, #dcfce7 0%, #22c55e 100%); }
-    .bg-moderate { background: linear-gradient(135deg, #fef9c3 0%, #eab308 100%); }
-    .bg-unhealthy { background: linear-gradient(135deg, #ffedd5 0%, #f97316 100%); }
-    .bg-hazardous { background: linear-gradient(135deg, #fee2e2 0%, #ef4444 100%); }
+    /* AQI Badge Colors */
+    .bg-good { background-color: #22c55e; color: white; }
+    .bg-moderate { background-color: #eab308; color: black; }
+    .bg-unhealthy { background-color: #f97316; color: white; }
+    .bg-hazardous { background-color: #ef4444; color: white; }
 
-    /* Custom Map Markers */
-    .custom-popup .leaflet-popup-content-wrapper {
-        background: rgba(255, 255, 255, 0.9);
-        backdrop-filter: blur(4px);
-        border-radius: 12px;
-        font-family: 'Outfit', sans-serif;
-        text-align: center;
+    /* Map Popup Styling */
+    .leaflet-popup-content-wrapper {
+        background: rgba(30, 41, 59, 0.9);
+        color: white;
+        border-radius: 8px;
     }
-    .custom-popup .leaflet-popup-tip { background: rgba(255, 255, 255, 0.9); }
+    .leaflet-popup-tip { background: rgba(30, 41, 59, 0.9); }
 </style>
 </head>
-<body class="bg-gradient-to-br from-slate-100 to-slate-300 min-h-screen text-slate-800 transition-colors duration-1000" id="mainBody">
+<body class="min-h-screen text-slate-100">
+
+<div class="overlay"></div>
 
 <div class="max-w-7xl mx-auto p-4 md:p-8">
   
-  <header class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+  <header class="flex flex-col md:flex-row justify-between items-center mb-10 gap-4">
       <div>
-        <h1 class="text-4xl md:text-6xl font-black tracking-tight text-slate-900">Delhi <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-600">AirGuard</span></h1>
-        <p class="text-slate-500 text-lg mt-1">Real-time Pollution Monitoring Network</p>
+        <h1 class="text-5xl md:text-6xl font-black tracking-tight">Delhi <span class="text-blue-400">AirGuard</span></h1>
+        <p class="text-slate-300 text-lg mt-1 tracking-wide">Real-time Pollution Monitoring</p>
       </div>
       <div class="text-right">
-          <p id="lastUpdated" class="text-sm font-bold text-slate-400 uppercase tracking-widest">Loading...</p>
+          <p id="lastUpdated" class="text-xs font-bold text-slate-400 uppercase tracking-widest bg-black bg-opacity-30 px-3 py-1 rounded-full">Connecting...</p>
       </div>
   </header>
 
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
       
-      <div id="mainCard" class="glass rounded-3xl p-8 shadow-xl flex flex-col justify-between h-64 relative overflow-hidden transition-all duration-500">
-          <div class="absolute -right-10 -top-10 w-40 h-40 bg-white opacity-20 rounded-full blur-2xl"></div>
+      <div class="glass rounded-3xl p-8 shadow-2xl flex flex-col justify-between h-80 relative overflow-hidden group">
+          <div class="absolute -right-10 -top-10 w-48 h-48 bg-blue-500 opacity-20 rounded-full blur-3xl group-hover:opacity-40 transition duration-700"></div>
+          
           <div>
-              <h2 class="text-xl font-bold text-slate-700">Delhi Average</h2>
-              <h3 id="statusText" class="text-3xl font-black mt-1 opacity-80">Scanning...</h3>
+              <h2 class="text-xl font-bold text-slate-300">Delhi Average AQI</h2>
+              <h3 id="statusText" class="text-4xl font-black mt-2 text-white">---</h3>
           </div>
-          <div class="flex items-baseline gap-2">
-              <span id="mainAQI" class="text-8xl font-black text-slate-900">--</span>
-              <span class="text-xl font-bold text-slate-600">AQI</span>
+          
+          <div class="flex items-end gap-3 z-10">
+              <span id="mainAQI" class="text-9xl font-black leading-none">--</span>
+              <div class="mb-4">
+                  <span class="block text-sm font-bold text-slate-400 uppercase">PM2.5</span>
+                  <span id="pm25Val" class="text-xl font-bold">--</span>
+              </div>
           </div>
       </div>
 
-      <div class="lg:col-span-2 glass rounded-3xl p-2 shadow-xl h-64 md:h-96 z-0">
+      <div class="lg:col-span-2 glass-strong rounded-3xl p-2 shadow-2xl h-80 z-0 relative">
           <div id="map" class="w-full h-full rounded-2xl z-0"></div>
       </div>
   </div>
 
-  <div class="flex flex-col md:flex-row justify-between items-end mb-6 gap-4">
-      <h2 class="text-2xl font-bold">Regional Breakdown <span id="stationCount" class="text-slate-400 text-sm ml-2 font-normal"></span></h2>
-      <input type="text" id="searchInput" placeholder="Search location (e.g. Dwarka)..." 
-             class="glass px-6 py-3 rounded-full w-full md:w-80 outline-none focus:ring-2 focus:ring-blue-400 transition shadow-sm"
-             onkeyup="filterStations()">
+  <div class="glass rounded-2xl p-6 mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
+      <div class="flex items-center gap-3">
+          <div class="bg-blue-500 p-2 rounded-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            </svg>
+          </div>
+          <h2 class="text-xl font-bold">Location Filter</h2>
+      </div>
+
+      <select id="locationSelect" onchange="handleSelectChange()" 
+              class="bg-slate-800 text-white border border-slate-600 rounded-xl px-4 py-3 w-full md:w-80 focus:ring-2 focus:ring-blue-500 outline-none">
+          <option value="top4">🔥 Top 4 Polluted Areas (Default)</option>
+          <option value="all">🌍 Show All Locations</option>
+          <option disabled>──────────</option>
+          </select>
   </div>
 
   <div id="regions" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -84,57 +123,94 @@
 <script>
 // --- CONFIGURATION ---
 let map, markers = [];
-let allStationsData = []; // Store data for filtering
+let allStationsData = []; 
 
 function getStatus(aqi) {
-    if (aqi <= 50) return { text: "Good", color: "text-green-600", bg: "bg-good" };
-    if (aqi <= 100) return { text: "Moderate", color: "text-yellow-600", bg: "bg-moderate" };
-    if (aqi <= 200) return { text: "Unhealthy", color: "text-orange-600", bg: "bg-unhealthy" };
-    return { text: "Hazardous", color: "text-red-600", bg: "bg-hazardous" };
+    if (aqi <= 50) return { text: "Good", class: "bg-good" };
+    if (aqi <= 100) return { text: "Moderate", class: "bg-moderate" };
+    if (aqi <= 200) return { text: "Unhealthy", class: "bg-unhealthy" };
+    return { text: "Hazardous", class: "bg-hazardous" };
 }
 
 function initMap() {
     if(map) return;
     map = L.map('map', {zoomControl: false}).setView([28.6139, 77.2090], 10);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    // Dark Mode Map Tiles
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         attribution: '&copy; OpenStreetMap &copy; CARTO',
         subdomains: 'abcd',
         maxZoom: 19
     }).addTo(map);
 }
 
-// Render a single card HTML
+// 1. GENERATE CARD HTML
 function createCard(s) {
     const status = getStatus(s.AQI);
     return `
-    <div class="glass p-5 rounded-2xl shadow hover:shadow-lg transition-all transform hover:-translate-y-1 cursor-pointer group">
-        <div class="flex justify-between items-start">
-            <h3 class="font-bold text-lg text-slate-800 group-hover:text-blue-600 transition">${s.location}</h3>
-            <div class="w-3 h-3 rounded-full ${status.bg.replace('bg-', 'bg-')} shadow-sm"></div>
-        </div>
-        <div class="mt-4 flex items-end justify-between">
-            <div>
-                <p class="text-xs text-slate-400 font-bold uppercase">AQI</p>
-                <p class="text-4xl font-black text-slate-800">${Math.round(s.AQI)}</p>
-            </div>
-            <span class="text-xs font-bold px-2 py-1 rounded-lg ${status.bg} bg-opacity-50 ${status.color}">
+    <div class="glass p-6 rounded-2xl hover:bg-white hover:bg-opacity-10 transition duration-300 border-l-4" style="border-color:${status.class === 'bg-good' ? '#22c55e' : status.class === 'bg-moderate' ? '#eab308' : status.class === 'bg-unhealthy' ? '#f97316' : '#ef4444'}">
+        <div class="flex justify-between items-start mb-2">
+            <h3 class="font-bold text-lg truncate pr-2">${s.location}</h3>
+            <span class="text-[10px] font-bold px-2 py-1 rounded-md ${status.class}">
                 ${status.text}
             </span>
+        </div>
+        <div class="flex items-end justify-between">
+            <div class="text-4xl font-black">${Math.round(s.AQI)}</div>
+            <div class="text-right text-xs text-slate-400">
+                <div>PM2.5: <span class="text-white">${Math.round(s.pm25)}</span></div>
+                <div>PM10: <span class="text-white">${Math.round(s.pm10)}</span></div>
+            </div>
         </div>
     </div>
     `;
 }
 
-// Search Filter Logic
-function filterStations() {
-    const query = document.getElementById('searchInput').value.toLowerCase();
+// 2. POPULATE DROPDOWN
+function populateDropdown() {
+    const select = document.getElementById("locationSelect");
+    // Keep the first 3 static options, remove the rest
+    while (select.options.length > 3) {
+        select.remove(3);
+    }
+    
+    // Alphabetical sort for dropdown
+    const sortedNames = [...allStationsData].sort((a,b) => a.location.localeCompare(b.location));
+    
+    sortedNames.forEach(s => {
+        const opt = document.createElement("option");
+        opt.value = s.location;
+        opt.innerText = s.location;
+        select.appendChild(opt);
+    });
+}
+
+// 3. HANDLE SELECTION
+function handleSelectChange() {
+    const value = document.getElementById("locationSelect").value;
     const grid = document.getElementById("regions");
     grid.innerHTML = "";
-    
-    const filtered = allStationsData.filter(s => s.location.toLowerCase().includes(query));
+
+    let filtered = [];
+
+    if (value === "top4") {
+        // Sort by AQI (High to Low) and take top 4
+        filtered = [...allStationsData].sort((a,b) => b.AQI - a.AQI).slice(0, 4);
+    } else if (value === "all") {
+        filtered = allStationsData;
+    } else {
+        // Specific location
+        filtered = allStationsData.filter(s => s.location === value);
+        
+        // If single location, zoom map to it
+        if(filtered.length > 0 && map) {
+            map.flyTo([filtered[0].lat, filtered[0].lon], 13);
+        }
+    }
+
     filtered.forEach(s => grid.innerHTML += createCard(s));
 }
 
+// 4. MAIN LOAD FUNCTION
 async function loadAQI() {
     try {
         const response = await fetch("/api/aqi");
@@ -142,64 +218,54 @@ async function loadAQI() {
 
         if (!data.stations || data.stations.length === 0) return;
 
-        allStationsData = data.stations.sort((a,b) => b.AQI - a.AQI); // Sort worst first
-        document.getElementById("stationCount").innerText = `(${allStationsData.length} Stations)`;
+        allStationsData = data.stations;
 
-        // 1. Calculate Average for Delhi
+        // Populate Dropdown only once
+        if (document.getElementById("locationSelect").options.length <= 3) {
+            populateDropdown();
+        }
+
+        // --- Update Top Stats ---
         const avgAQI = Math.round(allStationsData.reduce((a, b) => a + b.AQI, 0) / allStationsData.length);
+        const avgPM25 = Math.round(allStationsData.reduce((a, b) => a + b.pm25, 0) / allStationsData.length);
+        
         const mainStatus = getStatus(avgAQI);
-
-        // 2. Update Main Card
         document.getElementById("mainAQI").innerText = avgAQI;
+        document.getElementById("pm25Val").innerText = avgPM25;
         document.getElementById("statusText").innerText = mainStatus.text;
-        document.getElementById("statusText").className = `text-3xl font-black mt-1 ${mainStatus.color}`;
         
-        // Dynamic Background for Main Card
-        const mainCard = document.getElementById("mainCard");
-        mainCard.className = `glass rounded-3xl p-8 shadow-xl flex flex-col justify-between h-64 relative overflow-hidden transition-all duration-500 ${mainStatus.bg}`;
-
-        // 3. Update Timestamp
-        const date = new Date();
-        document.getElementById("lastUpdated").innerText = "UPDATED: " + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-
-        // 4. Initialize Map
+        // --- Map Logic ---
         initMap();
-        
-        // Clear old markers
         markers.forEach(m => map.removeLayer(m));
         markers = [];
 
-        // 5. Render Grid & Map Markers
-        const grid = document.getElementById("regions");
-        grid.innerHTML = ""; // Clear grid
-
         allStationsData.forEach(s => {
-            // Add to Grid
-            grid.innerHTML += createCard(s);
-
-            // Add to Map
             const mStatus = getStatus(s.AQI);
             const colorCode = mStatus.text === "Good" ? "#22c55e" : 
                               mStatus.text === "Moderate" ? "#eab308" : 
                               mStatus.text === "Unhealthy" ? "#f97316" : "#ef4444";
 
             const circle = L.circleMarker([s.lat, s.lon], {
-                color: 'white',
-                weight: 2,
+                color: 'transparent', // No border
                 fillColor: colorCode,
-                fillOpacity: 0.8,
-                radius: 12
+                fillOpacity: 0.9,
+                radius: 10
             }).addTo(map);
 
             circle.bindPopup(`
-                <div class="custom-popup">
-                    <h3 class="font-bold text-lg">${s.location}</h3>
-                    <div class="text-3xl font-black my-2" style="color:${colorCode}">${Math.round(s.AQI)}</div>
-                    <span class="text-xs font-bold uppercase text-slate-400">${mStatus.text}</span>
+                <div style="text-align:center;">
+                    <h3 style="font-weight:bold; font-size:14px; margin-bottom:4px;">${s.location}</h3>
+                    <div style="font-size:20px; font-weight:900; color:${colorCode}">${Math.round(s.AQI)}</div>
+                    <div style="font-size:10px; text-transform:uppercase; color:#aaa;">AQI</div>
                 </div>
             `);
             markers.push(circle);
         });
+
+        // Initial Render: Handle whatever is currently selected in dropdown (default is Top 4)
+        handleSelectChange();
+
+        document.getElementById("lastUpdated").innerText = "LIVE: " + new Date().toLocaleTimeString();
 
     } catch (err) {
         console.error("Failed", err);
@@ -207,7 +273,6 @@ async function loadAQI() {
 }
 
 loadAQI();
-// Refresh every 5 minutes
 setInterval(loadAQI, 300000); 
 </script>
 </body>

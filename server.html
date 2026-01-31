@@ -30,7 +30,7 @@
 
     /* Glassmorphism Cards */
     .glass {
-        background: rgba(255, 255, 255, 0.1); /* More transparent for dark mode feel */
+        background: rgba(255, 255, 255, 0.1); 
         backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
         border: 1px solid rgba(255, 255, 255, 0.2);
@@ -113,7 +113,7 @@
           <option value="top4">🔥 Top 4 Polluted Areas (Default)</option>
           <option value="all">🌍 Show All Locations</option>
           <option disabled>──────────</option>
-          </select>
+      </select>
   </div>
 
   <div id="regions" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -135,7 +135,6 @@ function getStatus(aqi) {
 function initMap() {
     if(map) return;
     map = L.map('map', {zoomControl: false}).setView([28.6139, 77.2090], 10);
-    // Dark Mode Map Tiles
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         attribution: '&copy; OpenStreetMap &copy; CARTO',
         subdomains: 'abcd',
@@ -168,14 +167,10 @@ function createCard(s) {
 // 2. POPULATE DROPDOWN
 function populateDropdown() {
     const select = document.getElementById("locationSelect");
-    // Keep the first 3 static options, remove the rest
     while (select.options.length > 3) {
         select.remove(3);
     }
-    
-    // Alphabetical sort for dropdown
     const sortedNames = [...allStationsData].sort((a,b) => a.location.localeCompare(b.location));
-    
     sortedNames.forEach(s => {
         const opt = document.createElement("option");
         opt.value = s.location;
@@ -189,24 +184,18 @@ function handleSelectChange() {
     const value = document.getElementById("locationSelect").value;
     const grid = document.getElementById("regions");
     grid.innerHTML = "";
-
     let filtered = [];
 
     if (value === "top4") {
-        // Sort by AQI (High to Low) and take top 4
         filtered = [...allStationsData].sort((a,b) => b.AQI - a.AQI).slice(0, 4);
     } else if (value === "all") {
         filtered = allStationsData;
     } else {
-        // Specific location
         filtered = allStationsData.filter(s => s.location === value);
-        
-        // If single location, zoom map to it
         if(filtered.length > 0 && map) {
             map.flyTo([filtered[0].lat, filtered[0].lon], 13);
         }
     }
-
     filtered.forEach(s => grid.innerHTML += createCard(s));
 }
 
@@ -215,43 +204,35 @@ async function loadAQI() {
     try {
         const response = await fetch("/api/aqi");
         const data = await response.json();
-
         if (!data.stations || data.stations.length === 0) return;
-
         allStationsData = data.stations;
 
-        // Populate Dropdown only once
         if (document.getElementById("locationSelect").options.length <= 3) {
             populateDropdown();
         }
 
-        // --- Update Top Stats ---
         const avgAQI = Math.round(allStationsData.reduce((a, b) => a + b.AQI, 0) / allStationsData.length);
         const avgPM25 = Math.round(allStationsData.reduce((a, b) => a + b.pm25, 0) / allStationsData.length);
-        
         const mainStatus = getStatus(avgAQI);
+        
         document.getElementById("mainAQI").innerText = avgAQI;
         document.getElementById("pm25Val").innerText = avgPM25;
         document.getElementById("statusText").innerText = mainStatus.text;
         
-        // --- Map Logic ---
         initMap();
         markers.forEach(m => map.removeLayer(m));
         markers = [];
-
         allStationsData.forEach(s => {
             const mStatus = getStatus(s.AQI);
             const colorCode = mStatus.text === "Good" ? "#22c55e" : 
                               mStatus.text === "Moderate" ? "#eab308" : 
                               mStatus.text === "Unhealthy" ? "#f97316" : "#ef4444";
-
             const circle = L.circleMarker([s.lat, s.lon], {
-                color: 'transparent', // No border
+                color: 'transparent',
                 fillColor: colorCode,
                 fillOpacity: 0.9,
                 radius: 10
             }).addTo(map);
-
             circle.bindPopup(`
                 <div style="text-align:center;">
                     <h3 style="font-weight:bold; font-size:14px; margin-bottom:4px;">${s.location}</h3>
@@ -262,16 +243,12 @@ async function loadAQI() {
             markers.push(circle);
         });
 
-        // Initial Render: Handle whatever is currently selected in dropdown (default is Top 4)
         handleSelectChange();
-
         document.getElementById("lastUpdated").innerText = "LIVE: " + new Date().toLocaleTimeString();
-
     } catch (err) {
         console.error("Failed", err);
     }
 }
-
 loadAQI();
 setInterval(loadAQI, 300000); 
 </script>

@@ -2,148 +2,212 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>AQI Live</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Delhi Live Air Quality</title>
 <script src="https://cdn.tailwindcss.com"></script>
-
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="YX" crossorigin=""/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700;900&display=swap" rel="stylesheet">
 
 <style>
-    /* Custom style for the map popup */
-    .leaflet-popup-content-wrapper { border-radius: 8px; font-family: sans-serif; }
-    .leaflet-popup-content { margin: 10px; text-align: center; }
+    body { font-family: 'Outfit', sans-serif; }
+    
+    /* Glassmorphism Classes */
+    .glass {
+        background: rgba(255, 255, 255, 0.7);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+    }
+    
+    /* Dynamic Gradients for AQI */
+    .bg-good { background: linear-gradient(135deg, #dcfce7 0%, #22c55e 100%); }
+    .bg-moderate { background: linear-gradient(135deg, #fef9c3 0%, #eab308 100%); }
+    .bg-unhealthy { background: linear-gradient(135deg, #ffedd5 0%, #f97316 100%); }
+    .bg-hazardous { background: linear-gradient(135deg, #fee2e2 0%, #ef4444 100%); }
+
+    /* Custom Map Markers */
+    .custom-popup .leaflet-popup-content-wrapper {
+        background: rgba(255, 255, 255, 0.9);
+        backdrop-filter: blur(4px);
+        border-radius: 12px;
+        font-family: 'Outfit', sans-serif;
+        text-align: center;
+    }
+    .custom-popup .leaflet-popup-tip { background: rgba(255, 255, 255, 0.9); }
 </style>
 </head>
-<body class="bg-slate-100 font-sans">
-<div class="max-w-6xl mx-auto p-8">
-  <h1 class="text-5xl font-black mb-4">Delhi Center AQI</h1>
+<body class="bg-gradient-to-br from-slate-100 to-slate-300 min-h-screen text-slate-800 transition-colors duration-1000" id="mainBody">
 
-  <div class="bg-white p-8 rounded-xl shadow mb-10">
-    <div class="flex items-end gap-4">
-      <h2 id="mainAQI" class="text-8xl font-black">---</h2>
-      <span id="status" class="text-xl font-bold"></span>
-    </div>
-    <p id="updated" class="text-slate-500 mt-2"></p>
+<div class="max-w-7xl mx-auto p-4 md:p-8">
+  
+  <header class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+      <div>
+        <h1 class="text-4xl md:text-6xl font-black tracking-tight text-slate-900">Delhi <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-600">AirGuard</span></h1>
+        <p class="text-slate-500 text-lg mt-1">Real-time Pollution Monitoring Network</p>
+      </div>
+      <div class="text-right">
+          <p id="lastUpdated" class="text-sm font-bold text-slate-400 uppercase tracking-widest">Loading...</p>
+      </div>
+  </header>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+      
+      <div id="mainCard" class="glass rounded-3xl p-8 shadow-xl flex flex-col justify-between h-64 relative overflow-hidden transition-all duration-500">
+          <div class="absolute -right-10 -top-10 w-40 h-40 bg-white opacity-20 rounded-full blur-2xl"></div>
+          <div>
+              <h2 class="text-xl font-bold text-slate-700">Delhi Average</h2>
+              <h3 id="statusText" class="text-3xl font-black mt-1 opacity-80">Scanning...</h3>
+          </div>
+          <div class="flex items-baseline gap-2">
+              <span id="mainAQI" class="text-8xl font-black text-slate-900">--</span>
+              <span class="text-xl font-bold text-slate-600">AQI</span>
+          </div>
+      </div>
+
+      <div class="lg:col-span-2 glass rounded-3xl p-2 shadow-xl h-64 md:h-96 z-0">
+          <div id="map" class="w-full h-full rounded-2xl z-0"></div>
+      </div>
   </div>
 
-  <h2 class="text-2xl font-bold mb-4">Live Map</h2>
-  <div id="map" class="h-96 w-full rounded-xl shadow mb-10 z-0"></div>
+  <div class="flex flex-col md:flex-row justify-between items-end mb-6 gap-4">
+      <h2 class="text-2xl font-bold">Regional Breakdown <span id="stationCount" class="text-slate-400 text-sm ml-2 font-normal"></span></h2>
+      <input type="text" id="searchInput" placeholder="Search location (e.g. Dwarka)..." 
+             class="glass px-6 py-3 rounded-full w-full md:w-80 outline-none focus:ring-2 focus:ring-blue-400 transition shadow-sm"
+             onkeyup="filterStations()">
+  </div>
 
-  <h2 class="text-2xl font-bold mb-4">Regional Breakdown</h2>
-  <div id="regions" class="grid md:grid-cols-4 gap-6"></div>
+  <div id="regions" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      </div>
 </div>
 
 <script>
-// Map Initialization Variables
-let map;
-let markers = [];
+// --- CONFIGURATION ---
+let map, markers = [];
+let allStationsData = []; // Store data for filtering
 
-function getStatus(val) {
-  if (val <= 50) return "Good";
-  if (val <= 100) return "Moderate";
-  if (val <= 200) return "Unhealthy";
-  return "Hazardous";
+function getStatus(aqi) {
+    if (aqi <= 50) return { text: "Good", color: "text-green-600", bg: "bg-good" };
+    if (aqi <= 100) return { text: "Moderate", color: "text-yellow-600", bg: "bg-moderate" };
+    if (aqi <= 200) return { text: "Unhealthy", color: "text-orange-600", bg: "bg-unhealthy" };
+    return { text: "Hazardous", color: "text-red-600", bg: "bg-hazardous" };
 }
 
-function getColor(val) {
-  if (val <= 50) return "#22c55e"; // Green
-  if (val <= 100) return "#eab308"; // Yellow
-  if (val <= 200) return "#f97316"; // Orange
-  return "#ef4444"; // Red
-}
-
-function initMap(lat, lon) {
-    if (map) return; // Prevent re-initialization
-    map = L.map('map').setView([lat, lon], 11); // Zoom level 11 for Delhi
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '© OpenStreetMap'
+function initMap() {
+    if(map) return;
+    map = L.map('map', {zoomControl: false}).setView([28.6139, 77.2090], 10);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap &copy; CARTO',
+        subdomains: 'abcd',
+        maxZoom: 19
     }).addTo(map);
 }
 
-async function loadAQI() {
-  try {
-    const response = await fetch("/api/aqi");
-    const data = await response.json();
+// Render a single card HTML
+function createCard(s) {
+    const status = getStatus(s.AQI);
+    return `
+    <div class="glass p-5 rounded-2xl shadow hover:shadow-lg transition-all transform hover:-translate-y-1 cursor-pointer group">
+        <div class="flex justify-between items-start">
+            <h3 class="font-bold text-lg text-slate-800 group-hover:text-blue-600 transition">${s.location}</h3>
+            <div class="w-3 h-3 rounded-full ${status.bg.replace('bg-', 'bg-')} shadow-sm"></div>
+        </div>
+        <div class="mt-4 flex items-end justify-between">
+            <div>
+                <p class="text-xs text-slate-400 font-bold uppercase">AQI</p>
+                <p class="text-4xl font-black text-slate-800">${Math.round(s.AQI)}</p>
+            </div>
+            <span class="text-xs font-bold px-2 py-1 rounded-lg ${status.bg} bg-opacity-50 ${status.color}">
+                ${status.text}
+            </span>
+        </div>
+    </div>
+    `;
+}
 
-    if (!data.stations || data.stations.length === 0) {
-      document.getElementById("mainAQI").innerText = "---";
-      document.getElementById("status").innerText = "No Data";
-      return;
-    }
-
-    const main = data.stations[0];
-    const aqiValue = main.AQI; 
-    document.getElementById("mainAQI").innerText = Math.round(aqiValue);
-    document.getElementById("status").innerText = getStatus(aqiValue);
-
-    // Initialize map centered on the first station if not already active
-    // (Using specific coords for Delhi center if first station varies)
-    initMap(28.6139, 77.2090);
-
-    // Clear existing markers before adding new ones
-    markers.forEach(layer => map.removeLayer(layer));
-    markers = [];
-
-    let updatedTime;
-    if (typeof main.lastUpdated === "number") {
-      updatedTime = new Date(main.lastUpdated * 1000); 
-    } else {
-      updatedTime = new Date(main.lastUpdated); 
-    }
-
-    document.getElementById("updated").innerText =
-      "Updated: " + updatedTime.toLocaleString("en-IN", {
-        timeZone: "Asia/Kolkata",
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit"
-      });
-
+// Search Filter Logic
+function filterStations() {
+    const query = document.getElementById('searchInput').value.toLowerCase();
     const grid = document.getElementById("regions");
     grid.innerHTML = "";
     
-    data.stations.forEach(s => {
-      // 1. Add to Grid
-      grid.innerHTML += `
-        <div class="bg-white p-4 rounded shadow">
-          <h3 class="font-bold">${s.location}</h3>
-          <p class="text-3xl font-black">${Math.round(s.AQI)}</p>
-          <p class="text-sm font-bold" style="color:${getColor(s.AQI)}">${getStatus(s.AQI)}</p>
-        </div>
-      `;
+    const filtered = allStationsData.filter(s => s.location.toLowerCase().includes(query));
+    filtered.forEach(s => grid.innerHTML += createCard(s));
+}
 
-      // 2. Add to Map (Only if lat/lon exists)
-      if (s.lat && s.lon) {
-          const circle = L.circleMarker([s.lat, s.lon], {
-              color: getColor(s.AQI),
-              fillColor: getColor(s.AQI),
-              fillOpacity: 0.7,
-              radius: 15
-          }).addTo(map);
+async function loadAQI() {
+    try {
+        const response = await fetch("/api/aqi");
+        const data = await response.json();
 
-          circle.bindPopup(`
-            <b>${s.location}</b><br>
-            AQI: ${Math.round(s.AQI)}<br>
-            ${getStatus(s.AQI)}
-          `);
-          
-          markers.push(circle);
-      }
-    });
+        if (!data.stations || data.stations.length === 0) return;
 
-  } catch (err) {
-    console.error("Failed to load AQI", err);
-    document.getElementById("mainAQI").innerText = "---";
-    document.getElementById("status").innerText = "Error";
-  }
+        allStationsData = data.stations.sort((a,b) => b.AQI - a.AQI); // Sort worst first
+        document.getElementById("stationCount").innerText = `(${allStationsData.length} Stations)`;
+
+        // 1. Calculate Average for Delhi
+        const avgAQI = Math.round(allStationsData.reduce((a, b) => a + b.AQI, 0) / allStationsData.length);
+        const mainStatus = getStatus(avgAQI);
+
+        // 2. Update Main Card
+        document.getElementById("mainAQI").innerText = avgAQI;
+        document.getElementById("statusText").innerText = mainStatus.text;
+        document.getElementById("statusText").className = `text-3xl font-black mt-1 ${mainStatus.color}`;
+        
+        // Dynamic Background for Main Card
+        const mainCard = document.getElementById("mainCard");
+        mainCard.className = `glass rounded-3xl p-8 shadow-xl flex flex-col justify-between h-64 relative overflow-hidden transition-all duration-500 ${mainStatus.bg}`;
+
+        // 3. Update Timestamp
+        const date = new Date();
+        document.getElementById("lastUpdated").innerText = "UPDATED: " + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
+        // 4. Initialize Map
+        initMap();
+        
+        // Clear old markers
+        markers.forEach(m => map.removeLayer(m));
+        markers = [];
+
+        // 5. Render Grid & Map Markers
+        const grid = document.getElementById("regions");
+        grid.innerHTML = ""; // Clear grid
+
+        allStationsData.forEach(s => {
+            // Add to Grid
+            grid.innerHTML += createCard(s);
+
+            // Add to Map
+            const mStatus = getStatus(s.AQI);
+            const colorCode = mStatus.text === "Good" ? "#22c55e" : 
+                              mStatus.text === "Moderate" ? "#eab308" : 
+                              mStatus.text === "Unhealthy" ? "#f97316" : "#ef4444";
+
+            const circle = L.circleMarker([s.lat, s.lon], {
+                color: 'white',
+                weight: 2,
+                fillColor: colorCode,
+                fillOpacity: 0.8,
+                radius: 12
+            }).addTo(map);
+
+            circle.bindPopup(`
+                <div class="custom-popup">
+                    <h3 class="font-bold text-lg">${s.location}</h3>
+                    <div class="text-3xl font-black my-2" style="color:${colorCode}">${Math.round(s.AQI)}</div>
+                    <span class="text-xs font-bold uppercase text-slate-400">${mStatus.text}</span>
+                </div>
+            `);
+            markers.push(circle);
+        });
+
+    } catch (err) {
+        console.error("Failed", err);
+    }
 }
 
 loadAQI();
+// Refresh every 5 minutes
 setInterval(loadAQI, 300000); 
 </script>
 </body>

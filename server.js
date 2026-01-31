@@ -3,9 +3,53 @@ const https = require("https");
 const path = require("path");
 const app = express();
 const PORT = 5000;
-const host = "0.0.0.0";
+
+// Remove host binding for Vercel compatibility (Vercel handles this)
+// const host = "0.0.0.0"; 
 
 const API_KEY = "9937d49d160b63eeb95ba143c8973684"; 
+
+// --- SMART CACHING SYSTEM ---
+// We cache data for 10 minutes to avoid hitting OpenWeatherMap rate limits
+let aqiCache = {
+  data: null,
+  timestamp: 0
+};
+const CACHE_DURATION = 10 * 60 * 1000; // 10 Minutes in milliseconds
+
+// --- ALL MAJOR DELHI LOCATIONS (30+ Stations) ---
+const DELHI_LOCATIONS = [
+  { name: "Connaught Place", lat: 28.6328, lon: 77.2197 },
+  { name: "India Gate", lat: 28.6129, lon: 77.2295 },
+  { name: "Karol Bagh", lat: 28.6465, lon: 77.2075 },
+  { name: "Chandni Chowk", lat: 28.6506, lon: 77.2303 },
+  { name: "Dwarka", lat: 28.5786, lon: 77.0421 },
+  { name: "Rohini", lat: 28.7032, lon: 77.1010 },
+  { name: "Pitampura", lat: 28.6990, lon: 77.1384 },
+  { name: "Punjabi Bagh", lat: 28.6616, lon: 77.1264 },
+  { name: "Janakpuri", lat: 28.6185, lon: 77.0902 },
+  { name: "Mundka", lat: 28.6814, lon: 77.0267 },
+  { name: "Najafgarh", lat: 28.6090, lon: 76.9855 },
+  { name: "Lajpat Nagar", lat: 28.5673, lon: 77.2390 },
+  { name: "Hauz Khas", lat: 28.5494, lon: 77.2001 },
+  { name: "Vasant Kunj", lat: 28.5242, lon: 77.1667 },
+  { name: "Saket", lat: 28.5244, lon: 77.2132 },
+  { name: "Mehrauli", lat: 28.5126, lon: 77.1764 },
+  { name: "Okhla Phase I", lat: 28.5299, lon: 77.2755 },
+  { name: "Nehru Place", lat: 28.5492, lon: 77.2530 },
+  { name: "Sarita Vihar", lat: 28.5262, lon: 77.2882 },
+  { name: "Mayur Vihar", lat: 28.6087, lon: 77.2996 },
+  { name: "Anand Vihar", lat: 28.6469, lon: 77.3160 },
+  { name: "Shahdara", lat: 28.6983, lon: 77.2815 },
+  { name: "Sonia Vihar", lat: 28.7095, lon: 77.2580 },
+  { name: "Narela", lat: 28.8427, lon: 77.0964 },
+  { name: "Bawana", lat: 28.8162, lon: 77.0458 },
+  { name: "Alipur", lat: 28.7981, lon: 77.1328 },
+  { name: "Jahangirpuri", lat: 28.7259, lon: 77.1627 },
+  { name: "Burari", lat: 28.7523, lon: 77.1995 },
+  { name: "Lodhi Road", lat: 28.5884, lon: 77.2217 },
+  { name: "Pusa", lat: 28.6340, lon: 77.1528 }
+];
 
 function calcAQI_PM25(pm) {
   if (pm <= 12) return linear(pm, 0, 12, 0, 50);
@@ -26,101 +70,71 @@ function calcAQI_PM10(pm) {
 }
 
 function linear(C, Clow, Chigh, Ilow, Ihigh) {
-  return Math.round(
-    ((Ihigh - Ilow) / (Chigh - Clow)) * (C - Clow) + Ilow
-  );
+  return Math.round(((Ihigh - Ilow) / (Chigh - Clow)) * (C - Clow) + Ilow);
 }
 
-app.get("/api/aqi", async (req, res) => {
-  try {
-    const areas = [
-      { name: "Connaught Place", lat: 28.6328, lon: 77.2197 },
-      { name: "Karol Bagh", lat: 28.6465, lon: 77.2075 },
-      { name: "Dwarka", lat: 28.5786, lon: 77.0421 },
-      { name: "Rohini", lat: 28.7032, lon: 77.1010 },
-      { name: "Lajpat Nagar", lat: 28.5673, lon: 77.2390 },
-      { name: "Janakpuri", lat: 28.6185, lon: 77.0902 },
-      { name: "Vasant Kunj", lat: 28.5242, lon: 77.1667 }
-    ];
-
-//       const areas = [
-//   { name: "Delhi",         lat: 28.6139, lon: 77.2090 },
-//   { name: "Mumbai",        lat: 19.0760, lon: 72.8777 },
-//   { name: "Kolkata",       lat: 22.5726, lon: 88.3639 },
-//   { name: "Chennai",       lat: 13.0827, lon: 80.2707 },
-//   { name: "Bengaluru",     lat: 12.9716, lon: 77.5946 },
-//   { name: "Jaipur",        lat: 26.9124, lon: 75.7873 },
-//   { name: "Guwahati",      lat: 26.1445, lon: 91.7362 },
-//   { name: "London",        lat: 51.5074, lon: -0.1278 }
-// ];
-
-   // const AQI_map = { 1: 50, 2: 100, 3: 150, 4: 200, 5: 300 };
-
-   const fetchAreaAQI = (area) =>
-  new Promise((resolve, reject) => {
+const fetchAreaAQI = (area) =>
+  new Promise((resolve) => {
     const url = `https://api.openweathermap.org/data/2.5/air_pollution?lat=${area.lat}&lon=${area.lon}&appid=${API_KEY}`;
-
     https.get(url, (apiRes) => {
       let data = "";
-
       apiRes.on("data", chunk => data += chunk);
-
       apiRes.on("end", () => {
         try {
           const json = JSON.parse(data);
-
-          if (!json.list || json.list.length === 0) {
-            return resolve(null);
-          }
-
+          if (!json.list || json.list.length === 0) return resolve(null);
           const mainData = json.list[0];
-
           const pm25 = mainData.components.pm2_5;
           const pm10 = mainData.components.pm10;
-
-          const aqiPM25 = calcAQI_PM25(pm25);
-          const aqiPM10 = calcAQI_PM10(pm10);
-
-          // Final AQI = worst pollutant
-          const realAQI = Math.max(aqiPM25, aqiPM10);
-
+          const aqi = Math.max(calcAQI_PM25(pm25), calcAQI_PM10(pm10));
+          
           resolve({
             location: area.name,
-            lat: area.lat, // <--- ADDED: Passes latitude to frontend
-            lon: area.lon, // <--- ADDED: Passes longitude to frontend
-            AQI: realAQI,
+            lat: area.lat,
+            lon: area.lon,
+            AQI: aqi,
             pm25,
             pm10,
-            lastUpdated: new Date(mainData.dt * 1000).toISOString()
+            lastUpdated: new Date().toISOString()
           });
-
-        } catch (e) {
-          resolve(null);
-          console.log("error",e);
-        }
+        } catch (e) { resolve(null); }
       });
-
-    }).on("error", err => reject(err));
+    }).on("error", () => resolve(null));
   });
 
-    const stations = (await Promise.all(areas.map(fetchAreaAQI))).filter(Boolean);
+app.get("/api/aqi", async (req, res) => {
+  try {
+    // Check Cache first
+    if (aqiCache.data && (Date.now() - aqiCache.timestamp < CACHE_DURATION)) {
+      console.log("Serving from Cache");
+      return res.json(aqiCache.data);
+    }
 
-    res.json({ city: "Delhi", stations });
+    console.log("Fetching fresh data from API...");
+    const stations = (await Promise.all(DELHI_LOCATIONS.map(fetchAreaAQI))).filter(Boolean);
+    
+    const responseData = { city: "Delhi", stations };
+    
+    // Update Cache
+    aqiCache.data = responseData;
+    aqiCache.timestamp = Date.now();
+
+    res.json(responseData);
   } catch (err) {
     console.error(err);
     res.json({ city: "Delhi", stations: [] });
   }
 });
 
-app.use((req, res, next) => {
-  console.log(req.method, req.url + "\t" + req.ip);
-  next();
-});
-
+// SERVE THE HTML FILE
+// IMPORTANT: Matches the file name you are using (server.html)
 app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, './server.html'));
+  res.sendFile(path.join(process.cwd(), 'server.html'));
 });
 
-app.listen(PORT, host, () => {
-  console.log("Server running at http://localhost:" + PORT);
-});
+// Important for Vercel & Local Development
+if (require.main === module) {
+  app.listen(PORT, () => console.log("Server running on port " + PORT));
+}
+
+module.exports = app;

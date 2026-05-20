@@ -84,27 +84,35 @@ const INDIA_LOCATIONS = [
 ========================= */
 
 function linear(C, Clow, Chigh, Ilow, Ihigh) {
+
   return Math.round(
     ((Ihigh - Ilow) / (Chigh - Clow)) * (C - Clow) + Ilow
   );
+
 }
 
 function calcAQI_PM25(pm) {
+
   if (pm <= 12) return linear(pm, 0, 12, 0, 50);
   if (pm <= 35.4) return linear(pm, 12.1, 35.4, 51, 100);
   if (pm <= 55.4) return linear(pm, 35.5, 55.4, 101, 150);
   if (pm <= 150.4) return linear(pm, 55.5, 150.4, 151, 200);
   if (pm <= 250.4) return linear(pm, 150.5, 250.4, 201, 300);
+
   return linear(pm, 250.5, 500, 301, 500);
+
 }
 
 function calcAQI_PM10(pm) {
+
   if (pm <= 54) return linear(pm, 0, 54, 0, 50);
   if (pm <= 154) return linear(pm, 55, 154, 51, 100);
   if (pm <= 254) return linear(pm, 155, 254, 101, 150);
   if (pm <= 354) return linear(pm, 255, 354, 151, 200);
   if (pm <= 424) return linear(pm, 355, 424, 201, 300);
+
   return linear(pm, 425, 604, 301, 500);
+
 }
 
 /* =========================
@@ -112,25 +120,35 @@ function calcAQI_PM10(pm) {
 ========================= */
 
 const fetchAreaAQI = (area) =>
+
   new Promise((resolve) => {
 
     const cacheKey = `${area.city}-${area.name}`;
 
+    // CACHE CHECK
     if (
       aqiCache[cacheKey] &&
       Date.now() - aqiCache[cacheKey].timestamp < CACHE_DURATION
     ) {
+
       return resolve(aqiCache[cacheKey].data);
+
     }
 
     const url =
       `https://api.openweathermap.org/data/2.5/air_pollution?lat=${area.lat}&lon=${area.lon}&appid=${API_KEY}`;
 
+    console.log("Fetching AQI:", area.city, "-", area.name);
+
     https.get(url, (apiRes) => {
 
       let data = "";
 
-      apiRes.on("data", chunk => data += chunk);
+      apiRes.on("data", chunk => {
+
+        data += chunk;
+
+      });
 
       apiRes.on("end", () => {
 
@@ -138,14 +156,22 @@ const fetchAreaAQI = (area) =>
 
           const json = JSON.parse(data);
 
+          // DEBUG LOG
+          console.log("API Response:", json);
+
+          // INVALID RESPONSE
           if (!json.list || !json.list.length) {
+
+            console.log("No AQI data found");
+
             return resolve(null);
+
           }
 
           const mainData = json.list[0];
 
-          const pm25 = mainData.components.pm2_5;
-          const pm10 = mainData.components.pm10;
+          const pm25 = mainData.components.pm2_5 || 0;
+          const pm10 = mainData.components.pm10 || 0;
 
           const aqi = Math.max(
             calcAQI_PM25(pm25),
@@ -153,6 +179,7 @@ const fetchAreaAQI = (area) =>
           );
 
           const result = {
+
             city: area.city,
             location: area.name,
             lat: area.lat,
@@ -161,23 +188,36 @@ const fetchAreaAQI = (area) =>
             pm25,
             pm10,
             lastUpdated: new Date().toISOString()
+
           };
 
+          // SAVE CACHE
           aqiCache[cacheKey] = {
+
             data: result,
             timestamp: Date.now()
+
           };
 
           resolve(result);
 
         } catch (err) {
-  console.log(err);
-  resolve(null);
-}
+
+          console.log("JSON ERROR:", err);
+
+          resolve(null);
+
+        }
 
       });
 
-    }).on("error", () => resolve(null));
+    }).on("error", (err) => {
+
+      console.log("REQUEST ERROR:", err);
+
+      resolve(null);
+
+    });
 
   });
 
@@ -193,30 +233,63 @@ app.get("/api/aqi", async (req, res) => {
 
     let locations = INDIA_LOCATIONS;
 
+    // FILTER CITY
     if (cityQuery) {
+
       locations = INDIA_LOCATIONS.filter(
+
         l => l.city.toLowerCase() === cityQuery.toLowerCase()
+
       );
+
     }
 
+    // FETCH ALL
     const stations = (
-      await Promise.all(locations.map(fetchAreaAQI))
+      await Promise.all(
+        locations.map(fetchAreaAQI)
+      )
     ).filter(Boolean);
 
+    // EMPTY RESULT
+    if (!stations.length) {
+
+      return res.json({
+
+        totalStations: 0,
+        averageAQI: 0,
+        stations: []
+
+      });
+
+    }
+
+    // AVG AQI
     const avgAQI = Math.round(
-      stations.reduce((sum, s) => sum + s.AQI, 0) / stations.length
+
+      stations.reduce(
+        (sum, s) => sum + s.AQI,
+        0
+      ) / stations.length
+
     );
 
     res.json({
+
       totalStations: stations.length,
       averageAQI: avgAQI,
       stations
+
     });
 
   } catch (err) {
 
+    console.log("SERVER ERROR:", err);
+
     res.status(500).json({
+
       error: "Failed to fetch AQI"
+
     });
 
   }
@@ -228,7 +301,11 @@ app.get("/api/aqi", async (req, res) => {
 ========================= */
 
 app.get("/", (req, res) => {
-  res.sendFile(path.join(process.cwd(), "server.html"));
+
+  res.sendFile(
+    path.join(process.cwd(), "server.html")
+  );
+
 });
 
 /* =========================
@@ -236,5 +313,7 @@ app.get("/", (req, res) => {
 ========================= */
 
 app.listen(PORT, () => {
+
   console.log(`Server running on port ${PORT}`);
+
 });

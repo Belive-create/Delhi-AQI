@@ -1,19 +1,16 @@
 {
-  "name": "serv",
+  "name": "india-airguard",
   "version": "1.0.0",
+  "description": "Real-time India AQI Monitoring Dashboard",
   "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js",
     "web": "nodemon server.js"
   },
-  "author": "",
-  "license": "ISC",
   "dependencies": {
     "express": "^5.2.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.11"
-  },
-  "description": ""
+  }
 }

@@ -170,9 +170,10 @@ const fetchAreaAQI = (area) =>
 
           resolve(result);
 
-        } catch {
-          resolve(null);
-        }
+        } catch (err) {
+  console.log(err);
+  resolve(null);
+}
 
       });
 

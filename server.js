@@ -1,48 +1,94 @@
 const express = require("express");
 const https = require("https");
 const path = require("path");
+
 const app = express();
 const PORT = 5000;
 
-const API_KEY = "9937d49d160b63eeb95ba143c8973684"; 
+/* =========================
+   API KEY
+========================= */
 
-// --- CACHE & LOCATIONS ---
-let aqiCache = { data: null, timestamp: 0 };
-const CACHE_DURATION = 10 * 60 * 1000; // Cache for 10 Minutes
+const API_KEY = "YOUR_API_KEY";
 
-// Full List of 30+ Delhi Locations
-const DELHI_LOCATIONS = [
-  { name: "Connaught Place", lat: 28.6328, lon: 77.2197 },
-  { name: "India Gate", lat: 28.6129, lon: 77.2295 },
-  { name: "Karol Bagh", lat: 28.6465, lon: 77.2075 },
-  { name: "Chandni Chowk", lat: 28.6506, lon: 77.2303 },
-  { name: "Dwarka", lat: 28.5786, lon: 77.0421 },
-  { name: "Rohini", lat: 28.7032, lon: 77.1010 },
-  { name: "Pitampura", lat: 28.6990, lon: 77.1384 },
-  { name: "Punjabi Bagh", lat: 28.6616, lon: 77.1264 },
-  { name: "Janakpuri", lat: 28.6185, lon: 77.0902 },
-  { name: "Mundka", lat: 28.6814, lon: 77.0267 },
-  { name: "Najafgarh", lat: 28.6090, lon: 76.9855 },
-  { name: "Lajpat Nagar", lat: 28.5673, lon: 77.2390 },
-  { name: "Hauz Khas", lat: 28.5494, lon: 77.2001 },
-  { name: "Vasant Kunj", lat: 28.5242, lon: 77.1667 },
-  { name: "Saket", lat: 28.5244, lon: 77.2132 },
-  { name: "Mehrauli", lat: 28.5126, lon: 77.1764 },
-  { name: "Okhla Phase I", lat: 28.5299, lon: 77.2755 },
-  { name: "Nehru Place", lat: 28.5492, lon: 77.2530 },
-  { name: "Sarita Vihar", lat: 28.5262, lon: 77.2882 },
-  { name: "Mayur Vihar", lat: 28.6087, lon: 77.2996 },
-  { name: "Anand Vihar", lat: 28.6469, lon: 77.3160 },
-  { name: "Shahdara", lat: 28.6983, lon: 77.2815 },
-  { name: "Sonia Vihar", lat: 28.7095, lon: 77.2580 },
-  { name: "Narela", lat: 28.8427, lon: 77.0964 },
-  { name: "Bawana", lat: 28.8162, lon: 77.0458 },
-  { name: "Alipur", lat: 28.7981, lon: 77.1328 },
-  { name: "Jahangirpuri", lat: 28.7259, lon: 77.1627 },
-  { name: "Burari", lat: 28.7523, lon: 77.1995 },
-  { name: "Lodhi Road", lat: 28.5884, lon: 77.2217 },
-  { name: "Pusa", lat: 28.6340, lon: 77.1528 }
+/* =========================
+   CACHE
+========================= */
+
+let aqiCache = {};
+const CACHE_DURATION = 5 * 60 * 1000;
+
+/* =========================
+   INDIA LOCATIONS
+========================= */
+
+const INDIA_LOCATIONS = [
+
+  // DELHI
+  { city: "Delhi", name: "Connaught Place", lat: 28.6328, lon: 77.2197 },
+  { city: "Delhi", name: "India Gate", lat: 28.6129, lon: 77.2295 },
+  { city: "Delhi", name: "Rohini", lat: 28.7032, lon: 77.1010 },
+
+  // MUMBAI
+  { city: "Mumbai", name: "Bandra", lat: 19.0596, lon: 72.8295 },
+  { city: "Mumbai", name: "Andheri", lat: 19.1136, lon: 72.8697 },
+  { city: "Mumbai", name: "Colaba", lat: 18.9067, lon: 72.8147 },
+
+  // BENGALURU
+  { city: "Bengaluru", name: "Whitefield", lat: 12.9698, lon: 77.7500 },
+  { city: "Bengaluru", name: "Electronic City", lat: 12.8399, lon: 77.6770 },
+
+  // CHENNAI
+  { city: "Chennai", name: "T Nagar", lat: 13.0418, lon: 80.2341 },
+  { city: "Chennai", name: "Velachery", lat: 12.9791, lon: 80.2209 },
+
+  // KOLKATA
+  { city: "Kolkata", name: "Salt Lake", lat: 22.5867, lon: 88.4170 },
+
+  // HYDERABAD
+  { city: "Hyderabad", name: "Gachibowli", lat: 17.4401, lon: 78.3489 },
+
+  // PUNE
+  { city: "Pune", name: "Hinjewadi", lat: 18.5912, lon: 73.7389 },
+
+  // JAIPUR
+  { city: "Jaipur", name: "Malviya Nagar", lat: 26.8467, lon: 75.8056 },
+
+  // LUCKNOW
+  { city: "Lucknow", name: "Gomti Nagar", lat: 26.8480, lon: 81.0080 },
+
+  // CHANDIGARH
+  { city: "Chandigarh", name: "Sector 17", lat: 30.7415, lon: 76.7681 },
+
+  // AHMEDABAD
+  { city: "Ahmedabad", name: "Navrangpura", lat: 23.0375, lon: 72.5619 },
+
+  // SURAT
+  { city: "Surat", name: "Adajan", lat: 21.1702, lon: 72.8311 },
+
+  // PATNA
+  { city: "Patna", name: "Kankarbagh", lat: 25.5941, lon: 85.1376 },
+
+  // BHOPAL
+  { city: "Bhopal", name: "MP Nagar", lat: 23.2599, lon: 77.4126 },
+
+  // NOIDA
+  { city: "Noida", name: "Sector 62", lat: 28.6280, lon: 77.3649 },
+
+  // GHAZIABAD
+  { city: "Ghaziabad", name: "Indirapuram", lat: 28.6460, lon: 77.3695 }
+
 ];
+
+/* =========================
+   AQI FUNCTIONS
+========================= */
+
+function linear(C, Clow, Chigh, Ilow, Ihigh) {
+  return Math.round(
+    ((Ihigh - Ilow) / (Chigh - Clow)) * (C - Clow) + Ilow
+  );
+}
 
 function calcAQI_PM25(pm) {
   if (pm <= 12) return linear(pm, 0, 12, 0, 50);
@@ -62,26 +108,53 @@ function calcAQI_PM10(pm) {
   return linear(pm, 425, 604, 301, 500);
 }
 
-function linear(C, Clow, Chigh, Ilow, Ihigh) {
-  return Math.round(((Ihigh - Ilow) / (Chigh - Clow)) * (C - Clow) + Ilow);
-}
+/* =========================
+   FETCH AQI
+========================= */
 
 const fetchAreaAQI = (area) =>
   new Promise((resolve) => {
-    const url = `https://api.openweathermap.org/data/2.5/air_pollution?lat=${area.lat}&lon=${area.lon}&appid=${API_KEY}`;
+
+    const cacheKey = `${area.city}-${area.name}`;
+
+    if (
+      aqiCache[cacheKey] &&
+      Date.now() - aqiCache[cacheKey].timestamp < CACHE_DURATION
+    ) {
+      return resolve(aqiCache[cacheKey].data);
+    }
+
+    const url =
+      `https://api.openweathermap.org/data/2.5/air_pollution?lat=${area.lat}&lon=${area.lon}&appid=${API_KEY}`;
+
     https.get(url, (apiRes) => {
+
       let data = "";
+
       apiRes.on("data", chunk => data += chunk);
+
       apiRes.on("end", () => {
+
         try {
+
           const json = JSON.parse(data);
-          if (!json.list || json.list.length === 0) return resolve(null);
+
+          if (!json.list || !json.list.length) {
+            return resolve(null);
+          }
+
           const mainData = json.list[0];
+
           const pm25 = mainData.components.pm2_5;
           const pm10 = mainData.components.pm10;
-          const aqi = Math.max(calcAQI_PM25(pm25), calcAQI_PM10(pm10));
-          
-          resolve({
+
+          const aqi = Math.max(
+            calcAQI_PM25(pm25),
+            calcAQI_PM10(pm10)
+          );
+
+          const result = {
+            city: area.city,
             location: area.name,
             lat: area.lat,
             lon: area.lon,
@@ -89,34 +162,79 @@ const fetchAreaAQI = (area) =>
             pm25,
             pm10,
             lastUpdated: new Date().toISOString()
-          });
-        } catch (e) { resolve(null); }
+          };
+
+          aqiCache[cacheKey] = {
+            data: result,
+            timestamp: Date.now()
+          };
+
+          resolve(result);
+
+        } catch {
+          resolve(null);
+        }
+
       });
+
     }).on("error", () => resolve(null));
+
   });
 
+/* =========================
+   API
+========================= */
+
 app.get("/api/aqi", async (req, res) => {
+
   try {
-    if (aqiCache.data && (Date.now() - aqiCache.timestamp < CACHE_DURATION)) {
-      return res.json(aqiCache.data);
+
+    const cityQuery = req.query.city;
+
+    let locations = INDIA_LOCATIONS;
+
+    if (cityQuery) {
+      locations = INDIA_LOCATIONS.filter(
+        l => l.city.toLowerCase() === cityQuery.toLowerCase()
+      );
     }
-    const stations = (await Promise.all(DELHI_LOCATIONS.map(fetchAreaAQI))).filter(Boolean);
-    const responseData = { city: "Delhi", stations };
-    aqiCache.data = responseData;
-    aqiCache.timestamp = Date.now();
-    res.json(responseData);
+
+    const stations = (
+      await Promise.all(locations.map(fetchAreaAQI))
+    ).filter(Boolean);
+
+    const avgAQI = Math.round(
+      stations.reduce((sum, s) => sum + s.AQI, 0) / stations.length
+    );
+
+    res.json({
+      totalStations: stations.length,
+      averageAQI: avgAQI,
+      stations
+    });
+
   } catch (err) {
-    res.json({ city: "Delhi", stations: [] });
+
+    res.status(500).json({
+      error: "Failed to fetch AQI"
+    });
+
   }
+
 });
 
-// IMPORTANT: Updated to serve server.html
+/* =========================
+   FRONTEND
+========================= */
+
 app.get("/", (req, res) => {
-  res.sendFile(path.join(process.cwd(), 'server.html'));
+  res.sendFile(path.join(process.cwd(), "server.html"));
 });
 
-if (require.main === module) {
-  app.listen(PORT, () => console.log("Server running on port " + PORT));
-}
+/* =========================
+   START SERVER
+========================= */
 
-module.exports = app;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});

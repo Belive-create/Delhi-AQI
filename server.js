@@ -9,7 +9,7 @@ const PORT = 5000;
    API KEY
 ========================= */
 
-const API_KEY = "YOUR_OPENWEATHER_API_KEY";
+const API_KEY = "9937d49d160b63eeb95ba143c8973684";
 
 /* =========================
    CACHE
